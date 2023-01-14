@@ -10,9 +10,10 @@ __pycache__/
 venv/
 
 # temporary dirs
-/out/
 /src/
+/out/
 /log/
+/tmp/
 
 # 3rd party files
 /models/*.blend

@@ -13,4 +13,4 @@ in this folder using following file structure:
 ```
 
 For MS Windows use `windows` as `<platform>`,
-for Linux use `linux` and for Mac OS use `mac`.
+for Linux use `linux` and for macOS use `darwin`.
