@@ -114,6 +114,10 @@ def run():
             print(f"Testing model {model} with Blender v{version}")
             run_test(config)
 
+    for file in os.listdir(tmp_dir):
+        os.remove(file)
+    os.rmdir(tmp_dir)
+
 
 if __name__ == '__main__':
     run()
