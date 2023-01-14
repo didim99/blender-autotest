@@ -9,6 +9,11 @@ __pycache__/
 # Enwironment
 venv/
 
-# In/out dirs
+# temporary dirs
 /out/
 /src/
+/log/
+
+# 3rd party files
+/models/*.blend
+/bin/blender/*

@@ -1,0 +1,1 @@
+Place your test models in `.blend` format to this folder.
