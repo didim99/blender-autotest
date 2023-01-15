@@ -187,6 +187,8 @@ def parse_error(result: CompletedProcess) -> str:
 
 
 def run_test(config: TestConfig) -> None:
+    print(f"[INFO] Testing model {config.model} with {config.blender.ver()}")
+
     for renderer in DeviceType.all():
         if renderer == DeviceType.OPTIX \
             and config.blender.versionCode < BlenderVer.V2_91:
@@ -236,11 +238,9 @@ def run():
             os.mkdir(d)
 
     for model in models:
-        for version in versions:
-            config = TestConfig(version, model)
+        for exe in versions:
+            config = TestConfig(exe, model)
             config.build(tmp_dir, log_dir)
-
-            print(f"[INFO] Testing model {model} with Blender v{version.versionName}")
             run_test(config)
 
     for file in os.listdir(tmp_dir):
