@@ -16,5 +16,5 @@ venv/
 /tmp/
 
 # 3rd party files
-/models/*.blend
+/models/*.blend*
 /bin/blender/*

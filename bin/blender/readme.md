@@ -14,3 +14,6 @@ in this folder using following file structure:
 
 For MS Windows use `windows` as `<platform>`,
 for Linux use `linux` and for macOS use `darwin`.
+
+On UNIX-like OS you can use symbolic link if you are
+already has many blender instances on your machine.
