@@ -289,7 +289,7 @@ def parse_error(result: CompletedProcess) -> str:
 
 
 def run_test(config: TestConfig) -> List[TestResult]:
-    print(f"[INFO] Testing model {config.model} with {config.blender.ver()}")
+    print(f"[INFO] Testing {config.model} with {config.blender.ver()}")
 
     results = []
     for renderer in DeviceType.all():
@@ -353,7 +353,7 @@ def run():
         if not os.path.isdir(d):
             os.mkdir(d)
 
-    now = time.strftime('%Y-%m-%d_%H-%M-%S.dat')
+    now = time.strftime('%Y-%m-%d_%H-%M-%S.csv')
     out_file = os.path.join(out_dir, now)
     with open(out_file, 'a') as out:
         out.write(TestResult.header() + '\n')
@@ -368,6 +368,7 @@ def run():
                 result = '\n'.join([str(r) for r in result])
                 out.write(result + '\n')
 
+    print(f"[INFO] Deleting temporary files")
     for file in os.listdir(tmp_dir):
         os.remove(os.path.join(tmp_dir, file))
     os.rmdir(tmp_dir)
