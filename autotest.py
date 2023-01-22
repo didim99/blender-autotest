@@ -21,7 +21,8 @@ class LogLevel:
 
 
 def log_print(level: str, msg: str) -> None:
-    log = f"[{level.upper()}] {msg}"
+    now = time.strftime('%Y-%m-%d %H:%M:%S')
+    log = f"{now} [{level.upper()}] {msg}"
     print(log)
 
     if global_log is not None:
@@ -361,13 +362,12 @@ def run_test(config: TestConfig) -> List[TestResult]:
 
 def run():
     global global_log
+
     test_passes = 3
     basedir = os.getcwd()
     log_dir = os.path.join(basedir, 'log')
     tmp_dir = os.path.join(basedir, 'tmp')
     out_dir = os.path.join(basedir, 'out')
-    versions = find_blender(basedir)
-    models = find_models(basedir)
 
     for d in log_dir, tmp_dir, out_dir:
         if not os.path.isdir(d):
@@ -376,6 +376,14 @@ def run():
     now = time.strftime('%Y-%m-%d_%H-%M-%S')
     global_log = os.path.join(out_dir, now + ".log")
     out_file = os.path.join(out_dir, now + ".csv")
+
+    versions = find_blender(basedir)
+    if len(versions) == 0:
+        log_print(LogLevel.E, "No any version of Blender found, aborting")
+    models = find_models(basedir)
+    if len(versions) == 0:
+        log_print(LogLevel.E, "No any test model found, aborting")
+
     with open(out_file, 'a') as out:
         out.write(TestResult.header() + '\n')
 
