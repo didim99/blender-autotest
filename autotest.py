@@ -165,7 +165,7 @@ class TestResult(object):
 
     @staticmethod
     def header():
-        return "".join([
+        return ";".join([
             'model',
             'version',
             'renderer',

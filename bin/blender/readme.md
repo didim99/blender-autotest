@@ -1,5 +1,5 @@
 Place unpacked portable blender instances (can be downloaded
-from [here](https://download.blender.org/release/))
+from [here](https://download.blender.org/release/), for Windows/mac use `.zip` files)
 in this folder using following file structure:
 
 ```
