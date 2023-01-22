@@ -10,6 +10,25 @@ from typing import List
 from subprocess import CompletedProcess
 
 
+global_log: str = None
+
+
+class LogLevel:
+    E = "ERR"
+    W = "WARN"
+    I = "INFO"
+    V = "VERB"
+
+
+def log_print(level: str, msg: str) -> None:
+    log = f"[{level.upper()}] {msg}"
+    print(log)
+
+    if global_log is not None:
+        with open(global_log, 'a') as file:
+            file.write(log + '\n')
+
+
 def str2ms(ts: str) -> int:
     ts = reversed(ts.split(':'))
     res = 0
@@ -146,12 +165,12 @@ class TestResult(object):
     renderer: str = None
     time: int = None
 
-    def __init__(self, config: TestConfig, renderer: str, time: int):
+    def __init__(self, config: TestConfig, renderer: str, _time: int):
         self.model = config.model
         self.blender = config.blender
         self.passes = config.passes
         self.renderer = renderer
-        self.time = time
+        self.time = _time
 
     def __str__(self):
         return ";".join([
@@ -202,7 +221,7 @@ def find_blender(basedir: str) -> List[BlenderExe]:
         version = line[1]
         version = BlenderExe(version, exe)
         versions.append(version)
-        print(f"[INFO] Found {version}")
+        log_print(LogLevel.I, f"Found {version}")
 
     return sorted(versions)
 
@@ -233,7 +252,7 @@ def find_models(basedir: str) -> List[TestModel]:
         else:
             model.pathCpu = path
 
-        print(f"[INFO] Found {model}")
+        log_print(LogLevel.I, f"Found {model}")
 
     return sorted([*models.values()])
 
@@ -289,21 +308,21 @@ def parse_error(result: CompletedProcess) -> str:
 
 
 def run_test(config: TestConfig) -> List[TestResult]:
-    print(f"[INFO] Testing {config.model} with {config.blender.ver()}")
+    log_print(LogLevel.I, f"Testing {config.model} with {config.blender.ver()}")
 
     results = []
     for renderer in DeviceType.all():
         if renderer == DeviceType.OPTIX \
             and config.blender.versionCode < BlenderVer.V2_91:
-            print(f"[WARN] Unable to run" +
-                  f" {config.blender.ver()} in {renderer} mode")
+            log_print(LogLevel.W, f"Unable to run" +
+                      f" {config.blender.ver()} in {renderer} mode")
             continue
 
         if renderer != DeviceType.CPU \
             and config.blender.versionCode < BlenderVer.V2_91 \
             and config.model.pathGpu is None:
-            print(f"[WARN] Unable to test {config.model} with" +
-                  f" {config.blender.ver()} in {renderer} mode")
+            log_print(LogLevel.W, f"Unable to test {config.model} with" +
+                      f" {config.blender.ver()} in {renderer} mode")
             continue
 
         args = [
@@ -318,12 +337,12 @@ def run_test(config: TestConfig) -> List[TestResult]:
         for p in range(config.passes):
             log_file = f"{config.logPath}_{renderer.lower()}_pass{p+1:02d}.log"
 
-            print(f"[VERB] Rendering with {renderer} engine (pass {p+1})...")
+            log_print(LogLevel.V, f"Rendering with {renderer} engine (pass {p+1})...")
             result = subprocess.run(args, capture_output=True,
                                     check=False)
 
             if result.returncode != 0:
-                print("[WARN] " + parse_error(result))
+                log_print(LogLevel.W, parse_error(result))
                 break
 
             with open(log_file, 'wb') as log:
@@ -333,7 +352,7 @@ def run_test(config: TestConfig) -> List[TestResult]:
             times.append(rt)
 
         rt = int(round(statistics.fmean(times)))
-        print(f"[INFO] Test finished, average time: {ms2str(rt)}")
+        log_print(LogLevel.I, f"Test finished, average time: {ms2str(rt)}")
         result = TestResult(config, renderer, rt)
         results.append(result)
 
@@ -341,6 +360,7 @@ def run_test(config: TestConfig) -> List[TestResult]:
 
 
 def run():
+    global global_log
     test_passes = 3
     basedir = os.getcwd()
     log_dir = os.path.join(basedir, 'log')
@@ -353,8 +373,9 @@ def run():
         if not os.path.isdir(d):
             os.mkdir(d)
 
-    now = time.strftime('%Y-%m-%d_%H-%M-%S.csv')
-    out_file = os.path.join(out_dir, now)
+    now = time.strftime('%Y-%m-%d_%H-%M-%S')
+    global_log = os.path.join(out_dir, now + ".log")
+    out_file = os.path.join(out_dir, now + ".csv")
     with open(out_file, 'a') as out:
         out.write(TestResult.header() + '\n')
 
@@ -368,7 +389,7 @@ def run():
                 result = '\n'.join([str(r) for r in result])
                 out.write(result + '\n')
 
-    print(f"[INFO] Deleting temporary files")
+    log_print(LogLevel.I, "Deleting temporary files")
     for file in os.listdir(tmp_dir):
         os.remove(os.path.join(tmp_dir, file))
     os.rmdir(tmp_dir)
