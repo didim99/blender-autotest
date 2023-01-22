@@ -2,9 +2,39 @@ from __future__ import annotations
 
 import os
 import platform
+import re
+import statistics
 import subprocess
+import time
 from typing import List
 from subprocess import CompletedProcess
+
+
+def str2ms(ts: str) -> int:
+    ts = reversed(ts.split(':'))
+    res = 0
+
+    for r, t in enumerate(ts):
+        if '.' in t:
+            t = t.split('.')
+            t = int(t[0]) * 1000 + int(t[1])
+        else:
+            t = int(t) * 1000
+        res += t * 60 ** r
+
+    return res
+
+
+def ms2str(ts: int, sep='.') -> str:
+    res = []
+    for part in [1000, 60, 60]:
+        res.append(ts % part)
+        ts //= part
+    res = "{:02d}:{:02d}{}{:03d}".format(
+        res[2], res[1], sep, res[0])
+    if ts > 0:
+        res = "{:02d}:{}".format(ts, res)
+    return res
 
 
 class ModelType:
@@ -88,15 +118,17 @@ class TestModel(object):
 
 
 class TestConfig(object):
-    passes: int = 3
     blender: BlenderExe = None
     model: TestModel = None
+    passes: int = None
+
     tempDir: str = None
     logPath: str = None
-
     outFile: str = None
 
-    def __init__(self, blender: BlenderExe, model: TestModel):
+    def __init__(self, blender: BlenderExe,
+                 model: TestModel, passes: int = 3):
+        self.passes = passes
         self.blender = blender
         self.model = model
 
@@ -105,6 +137,42 @@ class TestConfig(object):
         self.logPath = os.path.join(log_dir, name)
         self.tempDir = tmp_dir
         self.outFile = os.path.join(self.tempDir, "render-")
+
+
+class TestResult(object):
+    passes: int = None
+    blender: BlenderExe = None
+    model: TestModel = None
+    renderer: str = None
+    time: int = None
+
+    def __init__(self, config: TestConfig, renderer: str, time: int):
+        self.model = config.model
+        self.blender = config.blender
+        self.passes = config.passes
+        self.renderer = renderer
+        self.time = time
+
+    def __str__(self):
+        return ";".join([
+            self.model.name,
+            self.blender.versionName,
+            self.renderer,
+            str(self.passes),
+            str(self.time),
+            ms2str(self.time)
+        ])
+
+    @staticmethod
+    def header():
+        return "".join([
+            'model',
+            'version',
+            'renderer',
+            'passes',
+            'time_ms',
+            'time'
+        ])
 
 
 def find_blender(basedir: str) -> List[BlenderExe]:
@@ -170,6 +238,40 @@ def find_models(basedir: str) -> List[TestModel]:
     return sorted([*models.values()])
 
 
+def parse_result(result: CompletedProcess) -> int:
+    stdout = str(result.stdout, 'utf-8')
+    stdout = reversed(stdout.split('\n'))
+
+    bound = False
+    time_str = None
+    for line in stdout:
+        line = line.strip()
+        if len(line) == 0:
+            continue
+
+        if not bound:
+            if line == 'Blender quit':
+                bound = True
+            else:
+                continue
+
+        if line.startswith('Time:'):
+            time_str = line
+            break
+
+    if not time_str:
+        print(str(result.stdout, 'utf-8'))
+        raise RuntimeError('failed to find rendering time')
+
+    m = re.search(r"Time:\s(?P<total>[\d.:]+)\s\(Saving:\s(?P<save>[\d.:]+)\)",
+                  time_str)
+
+    total = str2ms(m.group('total'))
+    save = str2ms(m.group('save'))
+    render = total - save
+    return render
+
+
 def parse_error(result: CompletedProcess) -> str:
     error = "unknown error"
 
@@ -186,9 +288,10 @@ def parse_error(result: CompletedProcess) -> str:
     return "Render failed: " + error
 
 
-def run_test(config: TestConfig) -> None:
+def run_test(config: TestConfig) -> List[TestResult]:
     print(f"[INFO] Testing model {config.model} with {config.blender.ver()}")
 
+    results = []
     for renderer in DeviceType.all():
         if renderer == DeviceType.OPTIX \
             and config.blender.versionCode < BlenderVer.V2_91:
@@ -211,6 +314,7 @@ def run_test(config: TestConfig) -> None:
             '--cycles-device', renderer
         ]
 
+        times = []
         for p in range(config.passes):
             log_file = f"{config.logPath}_{renderer.lower()}_pass{p+1:02d}.log"
 
@@ -225,23 +329,44 @@ def run_test(config: TestConfig) -> None:
             with open(log_file, 'wb') as log:
                 log.write(result.stdout)
 
+            rt = parse_result(result)
+            times.append(rt)
+
+        rt = int(round(statistics.fmean(times)))
+        print(f"[INFO] Test finished, average time: {ms2str(rt)}")
+        result = TestResult(config, renderer, rt)
+        results.append(result)
+
+    return results
+
 
 def run():
+    test_passes = 3
     basedir = os.getcwd()
     log_dir = os.path.join(basedir, 'log')
     tmp_dir = os.path.join(basedir, 'tmp')
+    out_dir = os.path.join(basedir, 'out')
     versions = find_blender(basedir)
     models = find_models(basedir)
 
-    for d in log_dir, tmp_dir:
+    for d in log_dir, tmp_dir, out_dir:
         if not os.path.isdir(d):
             os.mkdir(d)
 
+    now = time.strftime('%Y-%m-%d_%H-%M-%S.dat')
+    out_file = os.path.join(out_dir, now)
+    with open(out_file, 'a') as out:
+        out.write(TestResult.header() + '\n')
+
     for model in models:
         for exe in versions:
-            config = TestConfig(exe, model)
+            config = TestConfig(exe, model, test_passes)
             config.build(tmp_dir, log_dir)
-            run_test(config)
+            result = run_test(config)
+
+            with open(out_file, 'a') as out:
+                result = '\n'.join([str(r) for r in result])
+                out.write(result + '\n')
 
     for file in os.listdir(tmp_dir):
         os.remove(os.path.join(tmp_dir, file))
