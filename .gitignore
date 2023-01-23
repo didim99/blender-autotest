@@ -12,7 +12,7 @@ venv/
 # temporary dirs
 /src/
 /out/
-/log/
+/*log/
 /tmp/
 
 # 3rd party files

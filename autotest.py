@@ -2,83 +2,19 @@ from __future__ import annotations
 
 import os
 import platform
-import re
 import statistics
 import subprocess
 import time
 from typing import List
 from subprocess import CompletedProcess
 
-
-global_log: str = None
-
-
-class LogLevel:
-    E = "ERR"
-    W = "WARN"
-    I = "INFO"
-    V = "VERB"
-
-
-def log_print(level: str, msg: str) -> None:
-    now = time.strftime('%Y-%m-%d %H:%M:%S')
-    log = f"{now} [{level.upper()}] {msg}"
-    print(log)
-
-    if global_log is not None:
-        with open(global_log, 'a') as file:
-            file.write(log + '\n')
-
-
-def str2ms(ts: str) -> int:
-    ts = reversed(ts.split(':'))
-    res = 0
-
-    for r, t in enumerate(ts):
-        if '.' in t:
-            t = t.split('.')
-            t = int(t[0]) * 1000 + int(t[1])
-        else:
-            t = int(t) * 1000
-        res += t * 60 ** r
-
-    return res
-
-
-def ms2str(ts: int, sep='.') -> str:
-    res = []
-    for part in [1000, 60, 60]:
-        res.append(ts % part)
-        ts //= part
-    res = "{:02d}:{:02d}{}{:03d}".format(
-        res[2], res[1], sep, res[0])
-    if ts > 0:
-        res = "{:02d}:{}".format(ts, res)
-    return res
+from blender import init_threshold, BlenderVer, DeviceType
+from common import ms2str, log_setup, log_print, LogLevel, parse_result
 
 
 class ModelType:
     CPU = 'cpu'
     GPU = 'gpu'
-
-
-class DeviceType:
-    CPU = 'CPU'
-    CUDA = 'CUDA'
-    OPTIX = 'OPTIX'
-
-    @staticmethod
-    def all():
-        return [
-            DeviceType.CPU,
-            DeviceType.CUDA,
-            DeviceType.OPTIX
-        ]
-
-class BlenderVer:
-    V2_79 = 27900
-    V2_80 = 28000
-    V2_91 = 29100
 
 
 class BlenderExe(object):
@@ -258,40 +194,6 @@ def find_models(basedir: str) -> List[TestModel]:
     return sorted([*models.values()])
 
 
-def parse_result(result: CompletedProcess) -> int:
-    stdout = str(result.stdout, 'utf-8')
-    stdout = reversed(stdout.split('\n'))
-
-    bound = False
-    time_str = None
-    for line in stdout:
-        line = line.strip()
-        if len(line) == 0:
-            continue
-
-        if not bound:
-            if line == 'Blender quit':
-                bound = True
-            else:
-                continue
-
-        if line.startswith('Time:'):
-            time_str = line
-            break
-
-    if not time_str:
-        print(str(result.stdout, 'utf-8'))
-        raise RuntimeError('failed to find rendering time')
-
-    m = re.search(r"Time:\s(?P<total>[\d.:]+)\s\(Saving:\s(?P<save>[\d.:]+)\)",
-                  time_str)
-
-    total = str2ms(m.group('total'))
-    save = str2ms(m.group('save'))
-    render = total - save
-    return render
-
-
 def parse_error(result: CompletedProcess) -> str:
     error = "unknown error"
 
@@ -334,11 +236,12 @@ def run_test(config: TestConfig) -> List[TestResult]:
             '--cycles-device', renderer
         ]
 
+        p = 1
         times = []
-        for p in range(config.passes):
-            log_file = f"{config.logPath}_{renderer.lower()}_pass{p+1:02d}.log"
+        while p <= config.passes:
+            log_file = f"{config.logPath}_{renderer.lower()}_pass{p:02d}.log"
 
-            log_print(LogLevel.V, f"Rendering with {renderer} engine (pass {p+1})...")
+            log_print(LogLevel.V, f"Rendering with {renderer} engine (pass {p})...")
             result = subprocess.run(args, capture_output=True,
                                     check=False)
 
@@ -346,14 +249,21 @@ def run_test(config: TestConfig) -> List[TestResult]:
                 log_print(LogLevel.W, parse_error(result))
                 break
 
+            it, rt = parse_result(result.stdout)
+            if it > init_threshold:
+                log_print(LogLevel.W, f"Kernel init took {it}ms, invalid result!")
+                continue
+
             with open(log_file, 'wb') as log:
                 log.write(result.stdout)
 
-            rt = parse_result(result)
             times.append(rt)
+            p += 1
 
+        dev = statistics.stdev(times)
         rt = int(round(statistics.fmean(times)))
-        log_print(LogLevel.I, f"Test finished, average time: {ms2str(rt)}")
+        log_print(LogLevel.I, "Test finished, "
+                  + f"average time: {ms2str(rt)}, stdev: {dev:.03f} ms")
         result = TestResult(config, renderer, rt)
         results.append(result)
 
@@ -361,8 +271,6 @@ def run_test(config: TestConfig) -> List[TestResult]:
 
 
 def run():
-    global global_log
-
     test_passes = 3
     basedir = os.getcwd()
     log_dir = os.path.join(basedir, 'log')
@@ -374,7 +282,7 @@ def run():
             os.mkdir(d)
 
     now = time.strftime('%Y-%m-%d_%H-%M-%S')
-    global_log = os.path.join(out_dir, now + ".log")
+    log_setup(os.path.join(out_dir, now + ".log"))
     out_file = os.path.join(out_dir, now + ".csv")
 
     versions = find_blender(basedir)
