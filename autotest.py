@@ -1,134 +1,13 @@
-from __future__ import annotations
-
 import os
 import platform
-import statistics
 import subprocess
 import time
 from typing import List
 from subprocess import CompletedProcess
 
-from blender import init_threshold, BlenderVer, DeviceType
-from common import ms2str, log_setup, log_print, LogLevel, parse_result
-
-
-class ModelType:
-    CPU = 'cpu'
-    GPU = 'gpu'
-
-
-class BlenderExe(object):
-    versionName: str = None
-    versionCode: int = None
-    execPath: str = None
-
-    def __init__(self, version: str, exe: str):
-        self.versionName = version
-        self.execPath = exe
-        self.parse_version()
-
-    def parse_version(self):
-        ver = self.versionName.split('.')
-        ver = [int(v) for v in ver]
-        self.versionCode = ver[0] * 10000
-        if len(ver) > 1:
-            self.versionCode += ver[1] * 100
-        if len(ver) > 2:
-            self.versionCode += ver[2]
-
-    def ver(self) -> str:
-        return f"Blender v{self.versionName}"
-
-    def __lt__(self, other: BlenderExe):
-        return self.versionCode < other.versionCode
-
-    def __repr__(self):
-        return f"{self.ver()} [{self.versionCode}] in {self.execPath}"
-
-
-class TestModel(object):
-    pathCpu: str = None
-    pathGpu: str = None
-    name: str = None
-
-    def __init__(self, name):
-        self.name = name
-
-    def __lt__(self, other: TestModel):
-        return self.name < other.name
-
-    def __repr__(self):
-        res = f"Model '{self.name}'"
-        _type = ""
-
-        if self.pathCpu is not None:
-            _type = "CPU"
-        if self.pathGpu is not None:
-            if len(_type) > 0:
-                _type += "/"
-            _type += "GPU"
-
-        if len(_type) > 0:
-            res += f" [{_type}]"
-        return res
-
-
-class TestConfig(object):
-    blender: BlenderExe = None
-    model: TestModel = None
-    passes: int = None
-
-    tempDir: str = None
-    logPath: str = None
-    outFile: str = None
-
-    def __init__(self, blender: BlenderExe,
-                 model: TestModel, passes: int = 3):
-        self.passes = passes
-        self.blender = blender
-        self.model = model
-
-    def build(self, tmp_dir: str, log_dir: str) -> None:
-        name = f"{self.model.name}_{self.blender.versionName}"
-        self.logPath = os.path.join(log_dir, name)
-        self.tempDir = tmp_dir
-        self.outFile = os.path.join(self.tempDir, "render-")
-
-
-class TestResult(object):
-    passes: int = None
-    blender: BlenderExe = None
-    model: TestModel = None
-    renderer: str = None
-    time: int = None
-
-    def __init__(self, config: TestConfig, renderer: str, _time: int):
-        self.model = config.model
-        self.blender = config.blender
-        self.passes = config.passes
-        self.renderer = renderer
-        self.time = _time
-
-    def __str__(self):
-        return ";".join([
-            self.model.name,
-            self.blender.versionName,
-            self.renderer,
-            str(self.passes),
-            str(self.time),
-            ms2str(self.time)
-        ])
-
-    @staticmethod
-    def header():
-        return ";".join([
-            'model',
-            'version',
-            'renderer',
-            'passes',
-            'time_ms',
-            'time'
-        ])
+from blender import INIT_THRESHOLD, DeviceType, ModelType, BlenderVer, BlenderExe
+from common import ms2str, log_setup, log_print, LogLevel, time_stat
+from testutils import TestModel, TestConfig, TestResult, parse_result
 
 
 def find_blender(basedir: str) -> List[BlenderExe]:
@@ -140,7 +19,7 @@ def find_blender(basedir: str) -> List[BlenderExe]:
     for vd in os.listdir(bin_dir):
         exe = os.path.join(bin_dir, vd, bin_name)
         if not os.path.isfile(exe) \
-            or not os.access(exe, os.X_OK):
+                or not os.access(exe, os.X_OK):
             continue
 
         result = subprocess.run([exe, '--version'],
@@ -164,17 +43,17 @@ def find_blender(basedir: str) -> List[BlenderExe]:
 
 
 def find_models(basedir: str) -> List[TestModel]:
-    modeldir = os.path.join(basedir, 'models')
+    model_dir = os.path.join(basedir, 'models')
     models = {}
 
-    for file in os.listdir(modeldir):
+    for file in os.listdir(model_dir):
         filename = os.path.splitext(file)
         if filename[1] != '.blend':
             continue
 
         name = filename[0][:-4]
         _type = filename[0][-3:].lower()
-        path = os.path.join(modeldir, file)
+        path = os.path.join(model_dir, file)
 
         if name in models:
             model = models[name]
@@ -216,14 +95,14 @@ def run_test(config: TestConfig) -> List[TestResult]:
     results = []
     for renderer in DeviceType.all():
         if renderer == DeviceType.OPTIX \
-            and config.blender.versionCode < BlenderVer.V2_91:
+                and config.blender.versionCode < BlenderVer.V2_91:
             log_print(LogLevel.W, f"Unable to run" +
                       f" {config.blender.ver()} in {renderer} mode")
             continue
 
         if renderer != DeviceType.CPU \
-            and config.blender.versionCode < BlenderVer.V2_91 \
-            and config.model.pathGpu is None:
+                and config.blender.versionCode < BlenderVer.V2_91 \
+                and config.model.pathGpu is None:
             log_print(LogLevel.W, f"Unable to test {config.model} with" +
                       f" {config.blender.ver()} in {renderer} mode")
             continue
@@ -250,7 +129,7 @@ def run_test(config: TestConfig) -> List[TestResult]:
                 break
 
             it, rt = parse_result(result.stdout)
-            if it > init_threshold:
+            if it > INIT_THRESHOLD:
                 log_print(LogLevel.W, f"Kernel init took {it}ms, invalid result!")
                 continue
 
@@ -260,8 +139,7 @@ def run_test(config: TestConfig) -> List[TestResult]:
             times.append(rt)
             p += 1
 
-        dev = statistics.stdev(times)
-        rt = int(round(statistics.fmean(times)))
+        rt, dev = time_stat(times)
         log_print(LogLevel.I, "Test finished, "
                   + f"average time: {ms2str(rt)}, stdev: {dev:.03f} ms")
         result = TestResult(config, renderer, rt)

@@ -1,6 +1,6 @@
-import re
 import time
-from typing import Union, List
+import statistics
+from typing import List
 
 
 global_log: str = None
@@ -16,6 +16,7 @@ class LogLevel:
 def log_setup(path: str) -> None:
     global global_log
     global_log = path
+
 
 def log_print(level: str, msg: str) -> None:
     now = time.strftime('%Y-%m-%d %H:%M:%S')
@@ -54,55 +55,7 @@ def ms2str(ts: int, sep='.') -> str:
     return res
 
 
-def time_from_log(line: List[str]) -> int:
-    return str2ms(line[1][5:])
-
-
-def parse_result(result: Union[bytes, str]) -> (int, int):
-    if type(result) is bytes:
-        result = str(result, 'utf-8')
-    lines = result.split('\n')
-
-    bound = False
-    time_str = None
-    for line in reversed(lines):
-        line = line.strip()
-        if len(line) == 0:
-            continue
-
-        if not bound:
-            if line == 'Blender quit':
-                bound = True
-            else:
-                continue
-
-        if line.startswith('Time:'):
-            time_str = line
-            break
-
-    if not time_str:
-        print(result)
-        raise RuntimeError('failed to find rendering time')
-
-    m = re.search(r"Time:\s(?P<total>[\d.:]+)\s\(Saving:\s(?P<save>[\d.:]+)\)",
-                  time_str)
-
-    total = str2ms(m.group('total'))
-    save = str2ms(m.group('save'))
-    render_time = total - save
-
-    init_start = None
-    init_end = None
-    for line in lines:
-        if not line.startswith("Fra:"):
-            continue
-        line = line.split(" | ")
-        if line[-1].startswith("Loading render kernels"):
-            init_start = time_from_log(line)
-            continue
-        if init_start is not None:
-            init_end = time_from_log(line)
-            break
-
-    init_time = init_end - init_start
-    return init_time, render_time
+def time_stat(times: List[int]) -> (int, float):
+    avg = int(round(statistics.fmean(times)))
+    dev = statistics.stdev(times)
+    return avg, dev
