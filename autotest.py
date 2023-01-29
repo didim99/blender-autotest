@@ -189,6 +189,17 @@ def run():
                 result = '\n'.join([str(r) for r in result])
                 out.write(result + '\n')
 
+    log_print(LogLevel.I, "Creating result archive")
+    zip_file = os.path.join(out_dir, now + ".zip")
+    with ZipFile(zip_file, 'w') as archive:
+        archive.write('log')
+        for file in os.listdir(log_dir):
+            path = os.path.join(log_dir, file)
+            archive.write(path, os.path.join('log', file))
+        archive.write('out')
+        archive.write(out_file, os.path.join('out', now + ".csv"))
+        archive.write(log_file, os.path.join('out', now + ".log"))
+
     log_print(LogLevel.I, "Deleting temporary files")
     for file in os.listdir(tmp_dir):
         os.remove(os.path.join(tmp_dir, file))
