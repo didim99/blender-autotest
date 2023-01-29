@@ -50,7 +50,7 @@ def run():
 
         for config, times in results.items():
             rt, dev = time_stat(times)
-            line = [*config, len(times), rt, ms2str(rt)]
+            line = [*config, len(times), rt, ms2str(rt), f"{dev:.03f}"]
             line = ';'.join([str(s) for s in line])
             out.write(line + '\n')
 

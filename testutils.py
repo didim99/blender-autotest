@@ -5,7 +5,7 @@ import re
 from typing import List, Union
 
 from blender import BlenderExe
-from common import ms2str, str2ms
+from common import ms2str, str2ms, time_stat
 
 
 class TestModel(object):
@@ -62,23 +62,26 @@ class TestResult(object):
     blender: BlenderExe = None
     model: TestModel = None
     renderer: str = None
-    time: int = None
+    times: List[int] = None
 
-    def __init__(self, config: TestConfig, renderer: str, _time: int):
+    def __init__(self, config: TestConfig,
+                 renderer: str, times: List[int]):
         self.model = config.model
         self.blender = config.blender
         self.passes = config.passes
         self.renderer = renderer
-        self.time = _time
+        self.times = times
 
     def __str__(self):
+        avg, dev = time_stat(self.times)
         return ";".join([
             self.model.name,
             self.blender.versionName,
             self.renderer,
             str(self.passes),
-            str(self.time),
-            ms2str(self.time)
+            str(avg),
+            ms2str(avg),
+            f"{dev:.03f}"
         ])
 
     @staticmethod
@@ -89,7 +92,8 @@ class TestResult(object):
             'renderer',
             'passes',
             'time_ms',
-            'time'
+            'time',
+            'stddev_ms'
         ])
 
 
@@ -133,7 +137,7 @@ def parse_result(result: Union[bytes, str]) -> (int, int):
     init_start = None
     init_end = None
     for line in lines:
-        if not line.startswith("Fra:"):
+        if not (line.startswith("Fra:") or line.startswith("Кадр:")):
             continue
         line = line.split(" | ")
         if line[-1].startswith("Loading render kernels"):

@@ -4,6 +4,7 @@ import subprocess
 import time
 from typing import List
 from subprocess import CompletedProcess
+from zipfile import ZipFile
 
 from blender import INIT_THRESHOLD, DeviceType, ModelType, BlenderVer, BlenderExe
 from common import ms2str, log_setup, log_print, LogLevel, time_stat
@@ -139,10 +140,14 @@ def run_test(config: TestConfig) -> List[TestResult]:
             times.append(rt)
             p += 1
 
+        if len(times) < 1:
+            continue
+
         rt, dev = time_stat(times)
-        log_print(LogLevel.I, "Test finished, "
-                  + f"average time: {ms2str(rt)}, stdev: {dev:.03f} ms")
-        result = TestResult(config, renderer, rt)
+        dev_percent = dev / rt * 100
+        log_print(LogLevel.I, f"Test finished, average time: {ms2str(rt)}, "
+                  + f"stddev: {dev:.03f} ms ({dev_percent:.02f}%)")
+        result = TestResult(config, renderer, times)
         results.append(result)
 
     return results
@@ -160,8 +165,9 @@ def run():
             os.mkdir(d)
 
     now = time.strftime('%Y-%m-%d_%H-%M-%S')
-    log_setup(os.path.join(out_dir, now + ".log"))
+    log_file = os.path.join(out_dir, now + ".log")
     out_file = os.path.join(out_dir, now + ".csv")
+    log_setup(log_file)
 
     versions = find_blender(basedir)
     if len(versions) == 0:
