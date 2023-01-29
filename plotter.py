@@ -3,45 +3,89 @@ import matplotlib
 import pandas as pd
 import numpy as np
 import matplotlib.pyplot as plt
+from matplotlib.ticker import AutoMinorLocator, FuncFormatter
+
+from blender import DeviceType
+
+
+colors = {
+    DeviceType.CPU: {'min': (15, 55, 107), 'max': (121, 173, 236)},
+    DeviceType.CUDA: {'min': (13, 97, 3), 'max': (172, 246, 162)},
+    DeviceType.OPTIX: {'min': (115, 2, 11), 'max': (232, 151, 158)}
+}
+
+
+def time_format(ms: float, x) -> str:
+    if ms < 60 * 1000:
+        return f'{ms // 1000:02.0f}.{ms % 1000:02.0f}'
+    return time.strftime('%M:%S', time.gmtime(ms // 1000))
+
+
+def mix(col0: tuple, col1: tuple, ratio: float) -> tuple:
+    return tuple((cmp1 * ratio + cmp0 * (1 - ratio)) / 255
+                 for cmp0, cmp1 in zip(col0, col1))
+
+
+def get_color(v: float, renderer: str) -> tuple:
+    color = colors[renderer]
+    return mix(color['min'], color['max'], v)
 
 
 def make_plot(file_path):
-    wd = 0.18
+    lh = 0.1
 
     data = pd.read_csv(file_path, sep=";")
-    version_count = data['version'].nunique()
     versions = data['version'].unique()
-    render_label = data['renderer'].unique()
-    experiment_title = data['model'].unique()
+    renderers = data['renderer'].unique()
+    model_names = data['model'].unique()
 
-    fig, ax = plt.subplots(2, 1)
-    formatter = matplotlib.ticker.FuncFormatter(
-        lambda ms, x: time.strftime('%M:%S', time.gmtime(ms // 1000)))
-
-    for i, title in enumerate(experiment_title):
+    # For every model drew a separate plot
+    for title in model_names:
         max_time = data[(data["model"] == title)]["time_ms"].max()
-        values = {}
+        fig, ax = plt.subplots()
+        fig.set_dpi(150)
 
-        for v in versions:
-            current_data = data[(data["model"] == title) & (data["version"] == v)]
-            positions = [np.arange(len(current_data)) - list(versions).index(v) * wd for v in versions]
-            colors = [(0, i / max_time, 0) for i in current_data["time_ms"].values]
+        y_ticks = None
+        # Draw results grouped by 'renderer' column
+        for i, renderer in enumerate(renderers):
+            current_data = data[(data["model"] == title) & (data["renderer"] == renderer)]
+            # Calculate bar colors based on renderer type and elapsed time
+            colors = [get_color(i/max_time, renderer) for i in current_data["time_ms"].values]
+            # Calculate global Y offset for current group
+            y_offs = (len(versions) + 1) * lh * i
 
-            cur_bar = ax[i].barh(np.arange(len(current_data)) - list(versions).index(v) * wd + 0.45,
-                                 current_data["time_ms"], height=wd, label=v,
-                                 color=colors, linewidth=0.4, edgecolor='k')
-            ax[i].bar_label(cur_bar, labels=[v for v in current_data["version"]],
-                            padding=8, fontsize=12)
+            # Store Y positions to draw y-ticks later
+            cur_ticks = np.arange(len(versions)) * lh + y_offs
+            if y_ticks is None:
+                y_ticks = np.copy(cur_ticks)
+            else:
+                y_ticks = np.concatenate([y_ticks, cur_ticks])
 
-        ax[i].set(yticks=np.arange(len(render_label)) + wd, yticklabels=render_label,
-                  ylim=[2 * wd - 1, len(render_label)])
-        # ax[i].legend()
-        ax[i].xaxis.set_major_formatter(formatter)
-        ax[i].set_title(title)
-        ax[i].set_axisbelow(True)
-        ax[i].grid(color='gray', linestyle=':')
+            # Calculate range of offsets for Y positions in current group
+            # by intersecting all version names and version names presented
+            # in group and taking indexes of 'ones' in intersection table
+            cur_y = np.nonzero(np.in1d(versions, current_data['version']))[0]
 
-    plt.show()
+            cur_bar = ax.barh(cur_y * lh + y_offs, current_data["time_ms"],
+                              height=lh, label=renderer, color=colors,
+                              linewidth=0.4, edgecolor='k')
+            ax.bar_label(cur_bar, labels=[v for v in current_data["time"]],
+                         padding=4, fontsize=10)
+
+        ax.xaxis.set_major_formatter(FuncFormatter(time_format))
+        ax.xaxis.set_minor_locator(AutoMinorLocator(2))
+        ax.xaxis.grid(which='both', color='gray', linestyle=':')
+        ax.xaxis.grid(which='minor', alpha=0.5)
+
+        ax.margins(x=0.2)
+        ax.set_title(title)
+        ax.set_axisbelow(True)
+        ax.set(yticks=y_ticks,
+               yticklabels=np.tile(versions, len(renderers)))
+        ax.legend(loc='lower center', ncols=len(renderers),
+                  bbox_to_anchor=(0.5, -0.18))
+        plt.tight_layout()
+        plt.show()
 
 
 if __name__ == '__main__':
