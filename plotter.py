@@ -89,12 +89,12 @@ def make_plot(file_path):
                   bbox_to_anchor=(0.5, -0.18))
         plt.tight_layout()
 
-        # Show figure
+        # Save figure in PNG file
         name = os.path.splitext(file_path)[0]
         name += '_' + model + '.png'
         plt.savefig(name, dpi=300)
 
-        # Save figure in PNG file
+        # Show figure
         win_title = os.path.basename(file_path) + ' - ' + model
         fig.canvas.manager.set_window_title(win_title)
         plt.show()
