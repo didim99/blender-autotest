@@ -11,7 +11,7 @@ venv/
 
 # temporary dirs
 /src/
-/out/
+/*out/
 /*log/
 /tmp/
 
