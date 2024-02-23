@@ -13,5 +13,7 @@ Runnable files list:
 * [`plotter.py`](plotter.py) - Parse summary `.csv` files from `/out` folder
   draw some diagrams and store it in `.png` files next to them
 
-For testing you need just pure python without any dependencies.
-Given [`requirements.txt`](requirements.txt) suitable only for plotting.
+For minimal testing you need just pure python without any dependencies.
+Given [`requirements.txt`](requirements.txt) suitable if you want to get
+CPU frequency statistics and CPU information in output log.
+[`requirements-plot.txt`](requirements-plot.txt) suitable for plotting.

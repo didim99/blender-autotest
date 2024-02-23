@@ -59,3 +59,9 @@ def time_stat(times: List[int]) -> (int, float):
     avg = int(round(statistics.fmean(times)))
     dev = statistics.stdev(times)
     return avg, dev
+
+
+def freq_stat(freqs: List[float]) -> (float, float):
+    avg = statistics.mean(freqs)
+    dev = statistics.stdev(freqs)
+    return avg, dev

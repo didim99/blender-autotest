@@ -1,11 +1,14 @@
 from __future__ import annotations
 
+import copy
 import os
 import re
+import statistics
 from typing import List, Union
 
 from blender import BlenderExe
 from common import ms2str, str2ms, time_stat
+from hwmeters import freqstat
 
 
 class TestModel(object):
@@ -39,14 +42,17 @@ class TestConfig(object):
     blender: BlenderExe = None
     model: TestModel = None
     passes: int = None
+    monitor_cpu: bool = None
 
     tempDir: str = None
     logPath: str = None
     outFile: str = None
 
     def __init__(self, blender: BlenderExe,
-                 model: TestModel, passes: int = 3):
+                 model: TestModel, passes: int = 3,
+                 monitor_cpu: bool = True):
         self.passes = passes
+        self.monitor_cpu = monitor_cpu
         self.blender = blender
         self.model = model
 
@@ -63,6 +69,7 @@ class TestResult(object):
     model: TestModel = None
     renderer: str = None
     times: List[int] = None
+    freqs: List[freqstat] = None
 
     def __init__(self, config: TestConfig,
                  renderer: str, times: List[int]):
@@ -71,6 +78,21 @@ class TestResult(object):
         self.passes = config.passes
         self.renderer = renderer
         self.times = times
+
+    def add_freq_stat(self, stats: List[freqstat]):
+        self.freqs = copy.copy(stats)
+
+    @property
+    def cpufreq_max(self) -> float:
+        if not self.freqs:
+            return 0
+        return max([freq.max for freq in self.freqs])
+
+    @property
+    def cpufreq_avg(self) -> float:
+        if not self.freqs:
+            return 0
+        return statistics.fmean([freq.avg for freq in self.freqs])
 
     def __str__(self):
         avg, dev = time_stat(self.times)
@@ -81,7 +103,9 @@ class TestResult(object):
             str(self.passes),
             str(avg),
             ms2str(avg),
-            f"{dev:.03f}"
+            f"{dev:.03f}",
+            f"{self.cpufreq_max:.03f}",
+            f"{self.cpufreq_avg:.03f}",
         ])
 
     @staticmethod
@@ -93,7 +117,9 @@ class TestResult(object):
             'passes',
             'time_ms',
             'time',
-            'stddev_ms'
+            'stddev_ms',
+            'cpufreq_max',
+            'cpufreq_avg'
         ])
 
 
