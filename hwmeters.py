@@ -1,14 +1,24 @@
+import platform
 import statistics
 import time
 from collections import namedtuple
 from threading import Thread
 from typing import List
 
+import distro
 import psutil
 
 
 freqsample = namedtuple('freqsample', ['time', 'freq'])
 freqstat = namedtuple('freqstat', ['min', 'max', 'avg'])
+
+
+def get_os_string() -> str:
+    system = platform.system()
+    if system.lower() == 'linux':
+        return f"{system} {distro.name()} {distro.version()} ({platform.release()})"
+    else:
+        return f"{system} {platform.release()} {platform.version()}"
 
 
 class CPUFreqWatcher(object):

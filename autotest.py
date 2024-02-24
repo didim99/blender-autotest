@@ -12,10 +12,13 @@ from testutils import TestModel, TestConfig, TestResult, parse_result
 
 try:
     from cpuinfo import get_cpu_info
-    from hwmeters import CPUFreqWatcher
+    from hwmeters import CPUFreqWatcher, get_os_string
+    import GPUtil
 except ImportError:
     get_cpu_info = None
     CPUFreqWatcher = None
+    get_os_string = None
+    GPUtil = None
 
 
 def find_blender(basedir: str) -> List[BlenderExe]:
@@ -213,8 +216,15 @@ def run():
         cpu_model = get_cpu_info()['brand_raw']
         log_print(LogLevel.I, f"Found CPU: {cpu_model}")
     else:
-        log_print(LogLevel.W, f"CPU monitoring is not available, "
-                              f"possible missing dependencies")
+        log_print(LogLevel.W, f"Possible missing dependencies, "
+                              f"CPU monitoring and system information is not available")
+
+    if GPUtil is not None:
+        for gpu in GPUtil.getGPUs():
+            log_print(LogLevel.I, f"Found GPU: {gpu.name} (driver: {gpu.driver})")
+
+    if get_os_string is not None:
+        log_print(LogLevel.I, f"Running on: {get_os_string()}")
 
     with open(out_file, 'a') as out:
         out.write(TestResult.header() + '\n')
