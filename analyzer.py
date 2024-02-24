@@ -28,6 +28,9 @@ def run():
     results = {}
     for file in sorted(os.listdir(log_dir)):
         filename = os.path.splitext(file)
+        if filename[1] != "log":
+            continue
+
         model, ver, renderer, pass_num = parse_filename(filename[0])
         config = (model, ver, renderer)
 
