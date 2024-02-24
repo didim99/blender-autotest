@@ -15,5 +15,5 @@ Runnable files list:
 
 For minimal testing you need just pure python without any dependencies.
 Given [`requirements.txt`](requirements.txt) suitable if you want to get
-CPU frequency statistics and CPU information in output log.
+CPU frequency statistics and hardware/OS information in output log.
 [`requirements-plot.txt`](requirements-plot.txt) suitable for plotting.
