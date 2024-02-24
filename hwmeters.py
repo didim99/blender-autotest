@@ -18,7 +18,7 @@ def get_os_string() -> str:
     if system.lower() == 'linux':
         return f"{system} {distro.name()} {distro.version()} ({platform.release()})"
     else:
-        return f"{system} {platform.release()} {platform.version()}"
+        return f"{system} {platform.release()} ({platform.version()})"
 
 
 class CPUFreqWatcher(object):
