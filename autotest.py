@@ -133,7 +133,12 @@ def run_test(config: TestConfig) -> List[TestResult]:
         p = 1
         times = []
         freqs = []
+        fails = 0
         while p <= config.passes:
+            if fails >= 10:
+                log_print(LogLevel.E, f"Kernel init failed 10 times, test aborted")
+                break
+
             log_file = f"{config.logPath}_{renderer.lower()}_pass{p:02d}.log"
             freq_file = f"{config.logPath}_{renderer.lower()}_pass{p:02d}_cpufreq.csv"
 
@@ -159,6 +164,7 @@ def run_test(config: TestConfig) -> List[TestResult]:
             it, rt = parse_result(result.stdout)
             if it > INIT_THRESHOLD:
                 log_print(LogLevel.W, f"Kernel init took {it}ms, invalid result!")
+                fails += 1
                 continue
 
             with open(log_file, 'wb') as log:
